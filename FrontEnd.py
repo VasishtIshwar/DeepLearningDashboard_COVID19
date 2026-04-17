@@ -5,6 +5,7 @@ import torch.nn.functional as F
 import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
+import plotly.express as px
 import streamlit as st
 from sklearn.preprocessing import MinMaxScaler
 from sklearn.metrics import mean_absolute_error
@@ -185,9 +186,15 @@ SEQ_LENGTH = 7   # LSTM look-back window (days)
 # ─────────────────────────────────────────────
 # DATA HELPERS
 # ─────────────────────────────────────────────
-@st.cache_data(show_spinner=False)
-def load_data(path):
-    return pd.read_csv(path, parse_dates=["date"])
+OWID_URL = (
+    "https://raw.githubusercontent.com/owid/covid-19-data"
+    "/master/public/data/owid-covid-data.csv"
+)
+
+@st.cache_data(show_spinner="📡 Fetching latest OWID COVID data…", ttl=3600)
+def load_owid_data():
+    """Download the OWID CSV directly from GitHub and cache it for 1 hour."""
+    return pd.read_csv(OWID_URL, parse_dates=["date"])
 
 
 def prepare_tensors(df, country, start, end, test_days, device):
@@ -610,12 +617,79 @@ def risk_recommendation(avg_r0):
 
 
 # ─────────────────────────────────────────────
+# WORLD HEATMAP
+# ─────────────────────────────────────────────
+@st.cache_data(show_spinner=False)
+def build_map_data(_df):
+    """Aggregate OWID data to monthly per-country averages for the choropleth."""
+    keep = ["date", "iso_code", "location", "new_cases_smoothed_per_million"]
+    df_m = _df[[c for c in keep if c in _df.columns]].copy()
+    df_m = df_m.dropna(subset=["iso_code"])
+    # OWID uses "OWID_*" codes for regional aggregates — drop them
+    df_m = df_m[~df_m["iso_code"].str.startswith("OWID_", na=False)]
+    df_m["month"] = df_m["date"].dt.to_period("M").astype(str)
+    agg = (
+        df_m.groupby(["month", "iso_code", "location"], as_index=False)
+        ["new_cases_smoothed_per_million"]
+        .mean()
+        .rename(columns={"new_cases_smoothed_per_million": "cases_per_million"})
+    )
+    agg["cases_per_million"] = agg["cases_per_million"].clip(lower=0).round(1)
+    return agg.sort_values("month").reset_index(drop=True)
+
+
+def world_heatmap_fig(df_map):
+    # Cap colour scale at 95th percentile so a few outlier spikes don't wash out the map
+    cap = float(df_map["cases_per_million"].quantile(0.95))
+    cap = max(cap, 1.0)
+
+    fig = px.choropleth(
+        df_map,
+        locations="iso_code",
+        color="cases_per_million",
+        hover_name="location",
+        hover_data={"iso_code": False, "cases_per_million": ":.1f"},
+        animation_frame="month",
+        color_continuous_scale="Reds",
+        range_color=[0, cap],
+        labels={"cases_per_million": "Cases / million"},
+        title="COVID-19 New Cases per Million — Monthly Average (7-day smoothed)",
+    )
+    fig.update_layout(
+        height=620,
+        margin=dict(t=70, l=0, r=0, b=0),
+        coloraxis_colorbar=dict(
+            title="Cases<br>per million",
+            thickness=14,
+            len=0.55,
+            tickformat=",",
+        ),
+        geo=dict(
+            showframe=False,
+            showcoastlines=True,
+            coastlinecolor="#555",
+            showland=True,
+            landcolor="#1a1a2e",
+            showocean=True,
+            oceancolor="#0d1117",
+            showlakes=False,
+            projection_type="natural earth",
+        ),
+        paper_bgcolor="rgba(0,0,0,0)",
+        plot_bgcolor="rgba(0,0,0,0)",
+    )
+    # Tune animation speed: 450 ms per frame, 200 ms transition
+    if fig.layout.updatemenus:
+        fig.layout.updatemenus[0].buttons[0].args[1]["frame"]["duration"] = 450
+        fig.layout.updatemenus[0].buttons[0].args[1]["transition"]["duration"] = 200
+    return fig
+
+
+# ─────────────────────────────────────────────
 # SIDEBAR
 # ─────────────────────────────────────────────
 with st.sidebar:
     st.title("⚙️ Settings")
-    uploaded = st.file_uploader("Upload OWID CSV", type="csv")
-    st.divider()
 
     st.subheader("Model selection")
     model_mode = st.radio(
@@ -631,20 +705,13 @@ with st.sidebar:
     st.divider()
 
     st.subheader("Data selection")
-    if uploaded is not None:
-        tmp_peek = "/tmp/owid_upload.csv"
-        uploaded.seek(0)
-        with open(tmp_peek, "wb") as _f:
-            _f.write(uploaded.read())
-        uploaded.seek(0)
-        df_peek = pd.read_csv(tmp_peek)
-        country_col_peek = "location" if "location" in df_peek.columns else "country"
-        available    = sorted(df_peek[country_col_peek].dropna().unique().tolist())
-        default_idx  = available.index("United States") if "United States" in available else 0
-        country      = st.selectbox("Country", available, index=default_idx)
-    else:
-        country = st.selectbox("Country", list(POPULATION_MAP.keys()))
-    n_pop      = POPULATION_MAP.get(country, 10_000_000)
+    # Load data once here so the country dropdown is populated from the live feed
+    _df_sidebar = load_owid_data()
+    _country_col = "location" if "location" in _df_sidebar.columns else "country"
+    _available   = sorted(_df_sidebar[_country_col].dropna().unique().tolist())
+    _default_idx = _available.index("United States") if "United States" in _available else 0
+    country  = st.selectbox("Country", _available, index=_default_idx)
+    n_pop    = POPULATION_MAP.get(country, 10_000_000)
     start_date = st.date_input("Start date", value=pd.Timestamp("2023-01-01"))
     end_date   = st.date_input("End date",   value=pd.Timestamp("2023-06-01"))
     test_days  = st.slider("Forecast window (days)", 7, 60, 21)
@@ -680,184 +747,181 @@ st.caption(model_subtitle[model_mode])
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 st.sidebar.caption(f"Device: **{device}**")
 
-if uploaded is None:
-    st.info(
-        "👈 Upload an Our World in Data COVID CSV to get started.\n\n"
-        "Download it from https://ourworldindata.org/covid-cases → *Download all data*."
-    )
-    st.stop()
+df_full = load_owid_data()
 
-tmp = "/tmp/owid_upload.csv"
-with open(tmp, "wb") as f:
-    f.write(uploaded.read())
-df_full = load_data(tmp)
+tab_forecast, tab_map = st.tabs(["📈 Forecast", "🗺️ Map"])
 
-data = prepare_tensors(df_full, country, start_date, end_date, test_days, device)
-if data is None:
-    st.error("Not enough data for this country / date range. Try a wider window.")
-    st.stop()
+# ══════════════════════════════════════════════
+# TAB 1 — FORECAST
+# ══════════════════════════════════════════════
+with tab_forecast:
 
-# ── Training ──────────────────────────────────
-if do_train:
-    pb   = st.progress(0.0)
-    stat = st.empty()
+    data = prepare_tensors(df_full, country, start_date, end_date, test_days, device)
+    if data is None:
+        st.error("Not enough data for this country / date range. Try a wider window.")
+        st.stop()
 
-    if model_mode in ("PINN", "Hybrid"):
-        pinn_model, pinn_log = train_pinn(data, epochs, n_pop, device, pb, stat)
-        st.session_state["pinn_model"]  = pinn_model
-        st.session_state["pinn_log_df"] = pinn_log
-        torch.save(pinn_model.state_dict(), save_path_pinn)
+    # ── Training ──────────────────────────────
+    if do_train:
+        pb   = st.progress(0.0)
+        stat = st.empty()
 
-    if model_mode in ("LSTM", "Hybrid"):
-        pb.progress(0.0)
-        lstm_model, lstm_log, lstm_data_seqs = train_lstm(
-            data, lstm_epochs, device, pb, stat
-        )
-        st.session_state["lstm_model"]     = lstm_model
-        st.session_state["lstm_log_df"]    = lstm_log
-        st.session_state["lstm_data_seqs"] = lstm_data_seqs
-        torch.save(lstm_model.state_dict(), save_path_lstm)
+        if model_mode in ("PINN", "Hybrid"):
+            pinn_model, pinn_log = train_pinn(data, epochs, n_pop, device, pb, stat)
+            st.session_state["pinn_model"]  = pinn_model
+            st.session_state["pinn_log_df"] = pinn_log
+            torch.save(pinn_model.state_dict(), save_path_pinn)
 
-    st.success("Training complete ✓  Models saved.")
+        if model_mode in ("LSTM", "Hybrid"):
+            pb.progress(0.0)
+            lstm_model, lstm_log, lstm_data_seqs = train_lstm(
+                data, lstm_epochs, device, pb, stat
+            )
+            st.session_state["lstm_model"]     = lstm_model
+            st.session_state["lstm_log_df"]    = lstm_log
+            st.session_state["lstm_data_seqs"] = lstm_data_seqs
+            torch.save(lstm_model.state_dict(), save_path_lstm)
 
-# ── Loading ───────────────────────────────────
-if st.session_state.get("load_requested"):
-    if model_mode in ("PINN", "Hybrid") and os.path.exists(save_path_pinn):
-        m = SEIAHR_Tuned(n_pop, data["t_max"], data["scaler_y"]).to(device)
-        m.load_state_dict(torch.load(save_path_pinn, map_location=device))
-        st.session_state["pinn_model"]  = m
-        st.session_state["pinn_log_df"] = None
+        st.success("Training complete ✓  Models saved.")
 
-    if model_mode in ("LSTM", "Hybrid") and os.path.exists(save_path_lstm):
-        lstm_seqs = prepare_lstm_sequences(data)
-        m_lstm = ImprovedLSTM(
-            input_size=1, hidden_size=64, num_layers=2,
-            forecast_steps=1, dropout=0.2, bidirectional=True,
-        ).to(device)
-        m_lstm.load_state_dict(torch.load(save_path_lstm, map_location=device))
-        st.session_state["lstm_model"]     = m_lstm
-        st.session_state["lstm_log_df"]    = None
-        st.session_state["lstm_data_seqs"] = lstm_seqs
+    # ── Loading ───────────────────────────────
+    if st.session_state.get("load_requested"):
+        if model_mode in ("PINN", "Hybrid") and os.path.exists(save_path_pinn):
+            m = SEIAHR_Tuned(n_pop, data["t_max"], data["scaler_y"]).to(device)
+            m.load_state_dict(torch.load(save_path_pinn, map_location=device))
+            st.session_state["pinn_model"]  = m
+            st.session_state["pinn_log_df"] = None
 
-    st.session_state["load_requested"] = False
-    st.success("Model(s) loaded ✓")
+        if model_mode in ("LSTM", "Hybrid") and os.path.exists(save_path_lstm):
+            lstm_seqs = prepare_lstm_sequences(data)
+            m_lstm = ImprovedLSTM(
+                input_size=1, hidden_size=64, num_layers=2,
+                forecast_steps=1, dropout=0.2, bidirectional=True,
+            ).to(device)
+            m_lstm.load_state_dict(torch.load(save_path_lstm, map_location=device))
+            st.session_state["lstm_model"]     = m_lstm
+            st.session_state["lstm_log_df"]    = None
+            st.session_state["lstm_data_seqs"] = lstm_seqs
 
-# ── Guard: need at least one model ────────────
-need_pinn = model_mode in ("PINN", "Hybrid")
-need_lstm = model_mode in ("LSTM", "Hybrid")
+        st.session_state["load_requested"] = False
+        st.success("Model(s) loaded ✓")
 
-if need_pinn and "pinn_model" not in st.session_state:
-    st.warning("Train a PINN model or load one from the sidebar.")
-    st.stop()
-if need_lstm and "lstm_model" not in st.session_state:
-    st.warning("Train an LSTM model or load one from the sidebar.")
-    st.stop()
+    # ── Guard: need at least one model ────────
+    need_pinn = model_mode in ("PINN", "Hybrid")
+    need_lstm = model_mode in ("LSTM", "Hybrid")
 
-# ── Evaluation ────────────────────────────────
-pinn_pred = lstm_pred = hybrid_pred = None
-actual     = None
+    if need_pinn and "pinn_model" not in st.session_state:
+        st.warning("Train a PINN model or load one from the sidebar.")
+        st.stop()
+    if need_lstm and "lstm_model" not in st.session_state:
+        st.warning("Train an LSTM model or load one from the sidebar.")
+        st.stop()
 
-if need_pinn:
-    pinn_model = st.session_state["pinn_model"]
-    pinn_pred, actual, pinn_mae, pinn_mape = evaluate_pinn(pinn_model, data)
+    # ── Evaluation ────────────────────────────
+    pinn_pred = lstm_pred = hybrid_pred = None
+    actual     = None
 
-if need_lstm:
-    lstm_model     = st.session_state["lstm_model"]
-    lstm_data_seqs = st.session_state["lstm_data_seqs"]
-    lstm_pred, actual, lstm_mae, lstm_mape = evaluate_lstm(lstm_model, lstm_data_seqs, data)
-
-if model_mode == "Hybrid":
-    hybrid_pred = compute_hybrid(pinn_pred, lstm_pred)
-    n_tr = data["n_train"]
-    hp_test = hybrid_pred[n_tr:]
-    ac_test = actual[n_tr:]
-    valid   = ~np.isnan(hp_test)
-    hybrid_mae  = mean_absolute_error(ac_test[valid], hp_test[valid])
-    hybrid_mape = np.mean(np.abs(
-        (ac_test[valid] - hp_test[valid]) / (np.abs(ac_test[valid]) + 1)
-    )) * 100
-
-n_train = data["n_train"]
-dates   = data["dates"]
-
-# ── KPI row ───────────────────────────────────
-if model_mode == "PINN":
-    k1, k2, k3, k4 = st.columns(4)
-    k1.metric("PINN MAE",  f"{pinn_mae:,.0f} cases")
-    k2.metric("PINN MAPE", f"{pinn_mape:.1f}%")
-    k3.metric("Training days", str(n_train))
-    k4.metric("Forecast window", f"{test_days} days")
-
-elif model_mode == "LSTM":
-    k1, k2, k3, k4 = st.columns(4)
-    k1.metric("LSTM MAE",  f"{lstm_mae:,.0f} cases")
-    k2.metric("LSTM MAPE", f"{lstm_mape:.1f}%")
-    k3.metric("Training days", str(n_train))
-    k4.metric("Forecast window", f"{test_days} days")
-
-else:  # Hybrid
-    k1, k2, k3, k4, k5, k6 = st.columns(6)
-    k1.metric("PINN MAE",   f"{pinn_mae:,.0f}")
-    k2.metric("LSTM MAE",   f"{lstm_mae:,.0f}")
-    k3.metric("Hybrid MAE", f"{hybrid_mae:,.0f}")
-    k4.metric("PINN MAPE",  f"{pinn_mape:.1f}%")
-    k5.metric("LSTM MAPE",  f"{lstm_mape:.1f}%")
-    k6.metric("Hybrid MAPE",f"{hybrid_mape:.1f}%")
-
-# ── Main forecast chart ───────────────────────
-st.divider()
-st.plotly_chart(
-    forecast_chart(dates, actual, pinn_pred, lstm_pred, hybrid_pred, n_train, model_mode),
-    use_container_width=True,
-)
-
-# ── Loss curves + compartments / LSTM details ─
-col_l, col_r = st.columns(2)
-
-with col_l:
-    if model_mode in ("PINN", "Hybrid"):
-        pinn_log = st.session_state.get("pinn_log_df")
-        if pinn_log is not None:
-            st.plotly_chart(loss_chart(pinn_log, "PINN"), use_container_width=True)
-        else:
-            st.info("PINN loss curves not available for loaded models.")
-    if model_mode in ("LSTM", "Hybrid"):
-        lstm_log = st.session_state.get("lstm_log_df")
-        if lstm_log is not None:
-            st.plotly_chart(loss_chart(lstm_log, "LSTM"), use_container_width=True)
-        else:
-            st.info("LSTM loss curves not available for loaded models.")
-
-with col_r:
     if need_pinn:
-        st.plotly_chart(compartment_chart(pinn_model, data, dates), use_container_width=True)
+        pinn_model = st.session_state["pinn_model"]
+        pinn_pred, actual, pinn_mae, pinn_mape = evaluate_pinn(pinn_model, data)
 
-# ── PINN-specific: β / R₀ section ─────────────
-if need_pinn:
+    if need_lstm:
+        lstm_model     = st.session_state["lstm_model"]
+        lstm_data_seqs = st.session_state["lstm_data_seqs"]
+        lstm_pred, actual, lstm_mae, lstm_mape = evaluate_lstm(lstm_model, lstm_data_seqs, data)
+
+    if model_mode == "Hybrid":
+        hybrid_pred = compute_hybrid(pinn_pred, lstm_pred)
+        n_tr = data["n_train"]
+        hp_test = hybrid_pred[n_tr:]
+        ac_test = actual[n_tr:]
+        valid   = ~np.isnan(hp_test)
+        hybrid_mae  = mean_absolute_error(ac_test[valid], hp_test[valid])
+        hybrid_mape = np.mean(np.abs(
+            (ac_test[valid] - hp_test[valid]) / (np.abs(ac_test[valid]) + 1)
+        )) * 100
+
+    n_train = data["n_train"]
+    dates   = data["dates"]
+
+    # ── KPI row ───────────────────────────────
+    if model_mode == "PINN":
+        k1, k2, k3, k4 = st.columns(4)
+        k1.metric("PINN MAE",  f"{pinn_mae:,.0f} cases")
+        k2.metric("PINN MAPE", f"{pinn_mape:.1f}%")
+        k3.metric("Training days", str(n_train))
+        k4.metric("Forecast window", f"{test_days} days")
+
+    elif model_mode == "LSTM":
+        k1, k2, k3, k4 = st.columns(4)
+        k1.metric("LSTM MAE",  f"{lstm_mae:,.0f} cases")
+        k2.metric("LSTM MAPE", f"{lstm_mape:.1f}%")
+        k3.metric("Training days", str(n_train))
+        k4.metric("Forecast window", f"{test_days} days")
+
+    else:  # Hybrid
+        k1, k2, k3, k4, k5, k6 = st.columns(6)
+        k1.metric("PINN MAE",   f"{pinn_mae:,.0f}")
+        k2.metric("LSTM MAE",   f"{lstm_mae:,.0f}")
+        k3.metric("Hybrid MAE", f"{hybrid_mae:,.0f}")
+        k4.metric("PINN MAPE",  f"{pinn_mape:.1f}%")
+        k5.metric("LSTM MAPE",  f"{lstm_mape:.1f}%")
+        k6.metric("Hybrid MAPE",f"{hybrid_mape:.1f}%")
+
+    # ── Main forecast chart ───────────────────
     st.divider()
-    st.subheader("📈 Transmission dynamics: β and R₀")
+    st.plotly_chart(
+        forecast_chart(dates, actual, pinn_pred, lstm_pred, hybrid_pred, n_train, model_mode),
+        use_container_width=True,
+    )
 
-    epi = get_epi_params(pinn_model, device)
-    risk_label, risk_type, risk_msg = risk_recommendation(epi["avg_r0"])
-    st.markdown(f"### {risk_label}")
-    if risk_type == "error":
-        st.error(risk_msg)
-    elif risk_type == "warning":
-        st.warning(risk_msg)
-    else:
-        st.success(risk_msg)
+    # ── Loss curves + compartments ────────────
+    col_l, col_r = st.columns(2)
 
-    b1, b2, b3, b4, b5 = st.columns(5)
-    b1.metric("Avg β",   f"{epi['avg_beta']:.4f}")
-    b2.metric("Min β",   f"{epi['min_beta']:.4f}")
-    b3.metric("Max β",   f"{epi['max_beta']:.4f}")
-    b4.metric("Avg R₀",  f"{epi['avg_r0']:.2f}")
-    b5.metric("R₀ range", f"{epi['min_r0']:.2f} – {epi['max_r0']:.2f}")
+    with col_l:
+        if model_mode in ("PINN", "Hybrid"):
+            pinn_log = st.session_state.get("pinn_log_df")
+            if pinn_log is not None:
+                st.plotly_chart(loss_chart(pinn_log, "PINN"), use_container_width=True)
+            else:
+                st.info("PINN loss curves not available for loaded models.")
+        if model_mode in ("LSTM", "Hybrid"):
+            lstm_log = st.session_state.get("lstm_log_df")
+            if lstm_log is not None:
+                st.plotly_chart(loss_chart(lstm_log, "LSTM"), use_container_width=True)
+            else:
+                st.info("LSTM loss curves not available for loaded models.")
 
-    st.plotly_chart(beta_r0_chart(epi, dates), use_container_width=True)
+    with col_r:
+        if need_pinn:
+            st.plotly_chart(compartment_chart(pinn_model, data, dates), use_container_width=True)
 
-    with st.expander("ℹ️ What do β and R₀ mean?"):
-        st.markdown("""
+    # ── PINN-specific: β / R₀ section ─────────
+    if need_pinn:
+        st.divider()
+        st.subheader("📈 Transmission dynamics: β and R₀")
+
+        epi = get_epi_params(pinn_model, device)
+        risk_label, risk_type, risk_msg = risk_recommendation(epi["avg_r0"])
+        st.markdown(f"### {risk_label}")
+        if risk_type == "error":
+            st.error(risk_msg)
+        elif risk_type == "warning":
+            st.warning(risk_msg)
+        else:
+            st.success(risk_msg)
+
+        b1, b2, b3, b4, b5 = st.columns(5)
+        b1.metric("Avg β",   f"{epi['avg_beta']:.4f}")
+        b2.metric("Min β",   f"{epi['min_beta']:.4f}")
+        b3.metric("Max β",   f"{epi['max_beta']:.4f}")
+        b4.metric("Avg R₀",  f"{epi['avg_r0']:.2f}")
+        b5.metric("R₀ range", f"{epi['min_r0']:.2f} – {epi['max_r0']:.2f}")
+
+        st.plotly_chart(beta_r0_chart(epi, dates), use_container_width=True)
+
+        with st.expander("ℹ️ What do β and R₀ mean?"):
+            st.markdown("""
 **β (beta) — transmission rate**
 The average contacts per day multiplied by transmission probability per contact.
 A higher β means the virus spreads more easily. β varies over time as behaviour,
@@ -873,39 +937,94 @@ The average number of people one infected person goes on to infect, calculated a
 The dashed red line marks the critical threshold of R₀ = 1.
 """)
 
-    with st.expander("🔬 Learned biological parameters"):
-        params = {
-            "Average β":                    epi["avg_beta"],
-            "Min β":                        epi["min_beta"],
-            "Max β":                        epi["max_beta"],
-            "Average R₀":                   epi["avg_r0"],
-            "Latent period (days)":         1 / epi["sigma"],
-            "Infectious period (days)":     1 / epi["gamma_I"],
-            "Hospital stay (days)":         1 / epi["gamma_H"],
-            "Symptomatic rate (%)":         epi["r"] * 100,
-            "Case detection rate (%)":      epi["k_c"] * 100,
-            "Hospitalisation rate (ψ_I)":   pinn_model.psi_I.item(),
-            "Asymptomatic infectivity (η_A)": pinn_model.eta_A.item(),
-        }
-        st.dataframe(
-            pd.DataFrame.from_dict(params, orient="index", columns=["Value"])
-            .style.format("{:.4f}")
+        with st.expander("🔬 Learned biological parameters"):
+            params = {
+                "Average β":                    epi["avg_beta"],
+                "Min β":                        epi["min_beta"],
+                "Max β":                        epi["max_beta"],
+                "Average R₀":                   epi["avg_r0"],
+                "Latent period (days)":         1 / epi["sigma"],
+                "Infectious period (days)":     1 / epi["gamma_I"],
+                "Hospital stay (days)":         1 / epi["gamma_H"],
+                "Symptomatic rate (%)":         epi["r"] * 100,
+                "Case detection rate (%)":      epi["k_c"] * 100,
+                "Hospitalisation rate (ψ_I)":   pinn_model.psi_I.item(),
+                "Asymptomatic infectivity (η_A)": pinn_model.eta_A.item(),
+            }
+            st.dataframe(
+                pd.DataFrame.from_dict(params, orient="index", columns=["Value"])
+                .style.format("{:.4f}")
+            )
+
+    # ── Download predictions ───────────────────
+    st.divider()
+    pred_df = pd.DataFrame({"date": dates.values, "actual_cases": actual})
+    if pinn_pred is not None:
+        pred_df["pinn_forecast"] = pinn_pred
+    if lstm_pred is not None:
+        pred_df["lstm_forecast"] = lstm_pred
+    if hybrid_pred is not None:
+        pred_df["hybrid_forecast"] = hybrid_pred
+    pred_df["split"] = ["train"] * n_train + ["test"] * (len(dates) - n_train)
+
+    st.download_button(
+        "⬇️ Download predictions as CSV",
+        data=pred_df.to_csv(index=False),
+        file_name="covid_forecast.csv",
+        mime="text/csv",
+    )
+
+# ══════════════════════════════════════════════
+# TAB 2 — WORLD HEATMAP
+# ══════════════════════════════════════════════
+with tab_map:
+    st.subheader("🌍 Global COVID-19 Spread")
+    st.caption(
+        "Monthly average of 7-day smoothed new cases per million people. "
+        "Use the ▶ play button or drag the slider to travel through time."
+    )
+
+    with st.spinner("Building world map…"):
+        df_map = build_map_data(df_full)
+
+    if df_map.empty:
+        st.error("Could not build map data from the loaded dataset.")
+    else:
+        # ── Optional metric selector ─────────────────
+        months_available = sorted(df_map["month"].unique())
+        col_info, col_range = st.columns([2, 3])
+        with col_info:
+            st.metric("Countries / territories", df_map["iso_code"].nunique())
+            st.metric("Months of data", len(months_available))
+            st.metric(
+                "Date range",
+                f"{months_available[0]}  →  {months_available[-1]}",
+            )
+        with col_range:
+            all_months = sorted(df_map["month"].unique())
+            start_m, end_m = st.select_slider(
+                "Restrict time range shown on map",
+                options=all_months,
+                value=(all_months[0], all_months[-1]),
+            )
+
+        df_filtered = df_map[
+            (df_map["month"] >= start_m) & (df_map["month"] <= end_m)
+        ]
+
+        st.plotly_chart(
+            world_heatmap_fig(df_filtered),
+            use_container_width=True,
         )
 
-# ── Download predictions ───────────────────────
-st.divider()
-pred_df = pd.DataFrame({"date": dates.values, "actual_cases": actual})
-if pinn_pred is not None:
-    pred_df["pinn_forecast"] = pinn_pred
-if lstm_pred is not None:
-    pred_df["lstm_forecast"] = lstm_pred
-if hybrid_pred is not None:
-    pred_df["hybrid_forecast"] = hybrid_pred
-pred_df["split"] = ["train"] * n_train + ["test"] * (len(dates) - n_train)
-
-st.download_button(
-    "⬇️ Download predictions as CSV",
-    data=pred_df.to_csv(index=False),
-    file_name="covid_forecast.csv",
-    mime="text/csv",
-)
+        with st.expander("ℹ️ How to read this map"):
+            st.markdown("""
+- **Colour intensity** shows the average daily new cases per million people for that month,
+  using the OWID 7-day smoothed series.
+- **Colour scale** is capped at the 95th percentile so a handful of extreme outbreak peaks
+  don't wash out the rest of the world.
+- **Regional aggregates** (World, Europe, Asia, etc.) are excluded — only individual
+  countries are shown.
+- **White / grey countries** have no data reported for that month.
+- Use the **▶ Play** button to animate, or drag the slider manually.
+            """)
