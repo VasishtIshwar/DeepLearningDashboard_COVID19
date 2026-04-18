@@ -547,46 +547,6 @@ def get_epi_params(model, device):
     }
 
 
-def beta_r0_chart(epi, dates):
-    xs  = list(dates)
-    n   = len(xs)
-    idx = np.linspace(0, len(epi["beta_curve"]) - 1, n).astype(int)
-    beta_vals = epi["beta_curve"][idx]
-    r0_vals   = epi["r0_curve"][idx]
-
-    fig = go.Figure()
-    fig.add_trace(go.Scatter(x=xs, y=beta_vals, name="β (transmission rate)",
-                             line=dict(color="#7c3aed", width=2), yaxis="y1"))
-    fig.add_trace(go.Scatter(x=xs, y=r0_vals, name="R₀ (reproduction number)",
-                             line=dict(color="#dc2626", width=2), yaxis="y2"))
-    # add_hline with yref="y2" is broken in newer Plotly - use add_shape instead
-    fig.add_shape(
-        type="line",
-        xref="paper", x0=0, x1=1,
-        yref="y2",    y0=1, y1=1,
-        line=dict(dash="dot", color="#dc2626", width=1.5),
-    )
-    fig.add_annotation(
-        xref="paper", x=1,
-        yref="y2",    y=1,
-        text="R₀ = 1 (epidemic threshold)",
-        showarrow=False,
-        xanchor="right", yanchor="bottom",
-        font=dict(color="#dc2626", size=11),
-    )
-    fig.update_layout(
-        title="Time-varying β and R₀",
-        xaxis_title="Date",
-        yaxis=dict(title="β", titlefont=dict(color="#7c3aed"),
-                   tickfont=dict(color="#7c3aed")),
-        yaxis2=dict(title="R₀", titlefont=dict(color="#dc2626"),
-                    tickfont=dict(color="#dc2626"), overlaying="y", side="right"),
-        hovermode="x unified", height=380, margin=dict(t=60),
-        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
-    )
-    return fig
-
-
 def compartment_chart(model, data, dates):
     model.eval()
     with torch.no_grad():
@@ -930,7 +890,6 @@ with tab_forecast:
         b4.metric("Avg R₀",  f"{epi['avg_r0']:.2f}")
         b5.metric("R₀ range", f"{epi['min_r0']:.2f} – {epi['max_r0']:.2f}")
 
-        st.plotly_chart(beta_r0_chart(epi, dates), use_container_width=True)
 
         with st.expander("ℹ️ What do β and R₀ mean?"):
             st.markdown("""
