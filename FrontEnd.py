@@ -559,9 +559,21 @@ def beta_r0_chart(epi, dates):
                              line=dict(color="#7c3aed", width=2), yaxis="y1"))
     fig.add_trace(go.Scatter(x=xs, y=r0_vals, name="R₀ (reproduction number)",
                              line=dict(color="#dc2626", width=2), yaxis="y2"))
-    fig.add_hline(y=1, line_dash="dot", line_color="#dc2626",
-                  annotation_text="R₀ = 1 (epidemic threshold)", yref="y2",
-                  annotation_position="bottom right")
+    # add_hline with yref="y2" is broken in newer Plotly - use add_shape instead
+    fig.add_shape(
+        type="line",
+        xref="paper", x0=0, x1=1,
+        yref="y2",    y0=1, y1=1,
+        line=dict(dash="dot", color="#dc2626", width=1.5),
+    )
+    fig.add_annotation(
+        xref="paper", x=1,
+        yref="y2",    y=1,
+        text="R₀ = 1 (epidemic threshold)",
+        showarrow=False,
+        xanchor="right", yanchor="bottom",
+        font=dict(color="#dc2626", size=11),
+    )
     fig.update_layout(
         title="Time-varying β and R₀",
         xaxis_title="Date",
