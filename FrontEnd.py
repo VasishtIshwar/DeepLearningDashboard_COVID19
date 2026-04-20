@@ -18,6 +18,280 @@ st.set_page_config(
 )
 
 # ─────────────────────────────────────────────
+# THEME SYSTEM  (light / dark toggle)
+# ─────────────────────────────────────────────
+if "dark_mode" not in st.session_state:
+    st.session_state["dark_mode"] = True   # default to dark
+
+
+def inject_theme(dark: bool):
+    if dark:
+        # ── Dark palette ──────────────────────
+        bg          = "#0E1117"
+        bg2         = "#1A1D27"
+        sidebar_bg  = "#1A1D27"
+        sidebar_bdr = "#3A3F55"
+        text        = "#E8EAF0"
+        text_muted  = "#9499B0"
+        accent      = "#4C8BF5"       # blue
+        accent2     = "#6EA8FE"
+        metric_bg   = "#1E2235"
+        metric_bdr  = "#3A3F55"
+        metric_top  = "#4C8BF5"
+        heading1    = "#6EA8FE"
+        heading2    = "#4C8BF5"
+        heading3    = "#6EA8FE"
+        h1_bdr      = "#3A3F55"
+        tab_list_bg = "#0E1117"
+        tab_color   = "#9499B0"
+        tab_sel_bg  = "#4C8BF5"
+        tab_sel_fg  = "#FFFFFF"
+        tab_hover   = "#1E2235"
+        tab_bdr     = "#3A3F55"
+        expander_bg = "#1A1D27"
+        expander_bdr= "#3A3F55"
+        expander_fg = "#6EA8FE"
+        btn_bdr     = "#4C8BF5"
+        btn_fg      = "#4C8BF5"
+        btn_hbg     = "#4C8BF5"
+        btn_hfg     = "#FFFFFF"
+        dl_bg       = "#4C8BF5"
+        dl_hbg      = "#2563EB"
+        sb_btn_bg   = "#4C8BF5"
+        sb_btn_fg   = "#FFFFFF"
+        sb_btn_hbg  = "#2563EB"
+        prog_fg     = "#4C8BF5"
+        prog_bg     = "#2A2F45"
+        hr_color    = "#3A3F55"
+        inp_bdr     = "#4C8BF5"
+        inp_focus   = "rgba(76,139,245,0.35)"
+        caption_fg  = "#9499B0"
+        spinner_fg  = "#4C8BF5"
+        sb_label    = "#B0B8D0"
+        sb_h_color  = "#6EA8FE"
+        sb_h_bdr    = "rgba(110,168,254,0.3)"
+    else:
+        # ── Light palette ─────────────────────
+        bg          = "#F5F7FA"
+        bg2         = "#FFFFFF"
+        sidebar_bg  = "#FFFFFF"
+        sidebar_bdr = "#D1D9E6"
+        text        = "#1C2030"
+        text_muted  = "#5A6478"
+        accent      = "#1A56DB"
+        accent2     = "#1E40AF"
+        metric_bg   = "#EEF2FF"
+        metric_bdr  = "#C7D7FD"
+        metric_top  = "#1A56DB"
+        heading1    = "#1A56DB"
+        heading2    = "#1E40AF"
+        heading3    = "#1A56DB"
+        h1_bdr      = "#C7D7FD"
+        tab_list_bg = "#F5F7FA"
+        tab_color   = "#4B5563"
+        tab_sel_bg  = "#1A56DB"
+        tab_sel_fg  = "#FFFFFF"
+        tab_hover   = "#EEF2FF"
+        tab_bdr     = "#C7D7FD"
+        expander_bg = "#FFFFFF"
+        expander_bdr= "#C7D7FD"
+        expander_fg = "#1A56DB"
+        btn_bdr     = "#1A56DB"
+        btn_fg      = "#1A56DB"
+        btn_hbg     = "#1A56DB"
+        btn_hfg     = "#FFFFFF"
+        dl_bg       = "#1A56DB"
+        dl_hbg      = "#1E40AF"
+        sb_btn_bg   = "#1A56DB"
+        sb_btn_fg   = "#FFFFFF"
+        sb_btn_hbg  = "#1E40AF"
+        prog_fg     = "#1A56DB"
+        prog_bg     = "#DBEAFE"
+        hr_color    = "#C7D7FD"
+        inp_bdr     = "#1A56DB"
+        inp_focus   = "rgba(26,86,219,0.25)"
+        caption_fg  = "#5A6478"
+        spinner_fg  = "#1A56DB"
+        sb_label    = "#374151"
+        sb_h_color  = "#1A56DB"
+        sb_h_bdr    = "rgba(26,86,219,0.25)"
+
+    st.markdown(f"""
+<style>
+/* ── Base ───────────────────────────────── */
+html, body,
+[data-testid="stAppViewContainer"],
+[data-testid="stApp"],
+[data-testid="block-container"] {{
+    background-color: {bg} !important;
+    color: {text} !important;
+    font-family: "Source Sans Pro", sans-serif !important;
+}}
+
+/* ── Sidebar ────────────────────────────── */
+[data-testid="stSidebar"] {{
+    background-color: {sidebar_bg} !important;
+    border-right: 2px solid {sidebar_bdr} !important;
+}}
+[data-testid="stSidebar"] * {{ color: {text} !important; }}
+[data-testid="stSidebar"] h1,
+[data-testid="stSidebar"] h2,
+[data-testid="stSidebar"] h3 {{
+    color: {sb_h_color} !important;
+    border-bottom: 1px solid {sb_h_bdr} !important;
+    padding-bottom: 4px !important;
+}}
+[data-testid="stSidebar"] label {{
+    color: {sb_label} !important;
+    font-weight: 600 !important;
+}}
+[data-testid="stSidebar"] .stButton > button {{
+    background-color: {sb_btn_bg} !important;
+    color: {sb_btn_fg} !important;
+    border: none !important;
+    font-weight: 700 !important;
+    border-radius: 6px !important;
+}}
+[data-testid="stSidebar"] .stButton > button:hover {{
+    background-color: {sb_btn_hbg} !important;
+    transform: translateY(-1px);
+}}
+
+/* ── Tabs ───────────────────────────────── */
+[data-testid="stTabs"] [data-baseweb="tab-list"] {{
+    border-bottom: 2px solid {tab_bdr} !important;
+    background: {tab_list_bg} !important;
+    gap: 4px;
+}}
+[data-testid="stTabs"] [data-baseweb="tab"] {{
+    color: {tab_color} !important;
+    font-weight: 700 !important;
+    font-size: 1.05rem !important;
+    padding: 8px 20px !important;
+    border-radius: 8px 8px 0 0 !important;
+    transition: background 0.2s;
+}}
+[data-testid="stTabs"] [data-baseweb="tab"]:hover {{
+    background: {tab_hover} !important;
+}}
+[data-testid="stTabs"] [aria-selected="true"] {{
+    background-color: {tab_sel_bg} !important;
+    color: {tab_sel_fg} !important;
+    border-radius: 8px 8px 0 0 !important;
+}}
+
+/* ── Metrics ────────────────────────────── */
+[data-testid="stMetric"] {{
+    background: {metric_bg} !important;
+    border: 1px solid {metric_bdr} !important;
+    border-top: 3px solid {metric_top} !important;
+    border-radius: 10px !important;
+    padding: 12px 16px !important;
+}}
+[data-testid="stMetricLabel"] {{
+    color: {text_muted} !important;
+    font-weight: 700 !important;
+    font-size: 0.85rem !important;
+}}
+[data-testid="stMetricValue"] {{
+    color: {accent} !important;
+    font-weight: 800 !important;
+}}
+
+/* ── Buttons ────────────────────────────── */
+[data-testid="stDownloadButton"] > button {{
+    background-color: {dl_bg} !important;
+    color: #FFFFFF !important;
+    border: none !important;
+    font-weight: 600 !important;
+    border-radius: 6px !important;
+    padding: 8px 20px !important;
+}}
+[data-testid="stDownloadButton"] > button:hover {{
+    background-color: {dl_hbg} !important;
+}}
+.stButton > button {{
+    border: 2px solid {btn_bdr} !important;
+    color: {btn_fg} !important;
+    border-radius: 6px !important;
+    font-weight: 600 !important;
+    transition: all 0.2s;
+}}
+.stButton > button:hover {{
+    background-color: {btn_hbg} !important;
+    color: {btn_hfg} !important;
+}}
+
+/* ── Alerts / banners ───────────────────── */
+[data-testid="stAlert"] {{
+    border-radius: 8px !important;
+    border-left-width: 5px !important;
+    font-weight: 500 !important;
+}}
+
+/* ── Progress bar ───────────────────────── */
+[data-testid="stProgressBar"] > div > div {{
+    background-color: {prog_fg} !important;
+}}
+[data-testid="stProgressBar"] > div {{
+    background-color: {prog_bg} !important;
+    border-radius: 4px !important;
+}}
+
+/* ── Expanders ──────────────────────────── */
+[data-testid="stExpander"] {{
+    border: 1px solid {expander_bdr} !important;
+    border-radius: 8px !important;
+    background: {expander_bg} !important;
+}}
+[data-testid="stExpander"] summary {{
+    color: {expander_fg} !important;
+    font-weight: 700 !important;
+}}
+
+/* ── Dividers ───────────────────────────── */
+hr {{ border-color: {hr_color} !important; border-width: 1px !important; }}
+
+/* ── Headings ───────────────────────────── */
+h1 {{
+    color: {heading1} !important;
+    border-bottom: 3px solid {h1_bdr} !important;
+    padding-bottom: 8px !important;
+    font-weight: 800 !important;
+}}
+h2 {{ color: {heading2} !important; font-weight: 700 !important; }}
+h3 {{ color: {heading3} !important; font-weight: 700 !important; }}
+
+/* ── Dataframe ──────────────────────────── */
+[data-testid="stDataFrame"] {{
+    border: 1px solid {metric_bdr} !important;
+    border-radius: 8px !important;
+}}
+
+/* ── Select / input boxes ───────────────── */
+[data-baseweb="select"] > div,
+[data-baseweb="input"] > div {{
+    border-color: {inp_bdr} !important;
+    border-radius: 6px !important;
+}}
+[data-baseweb="select"] > div:focus-within,
+[data-baseweb="input"] > div:focus-within {{
+    border-color: {accent} !important;
+    box-shadow: 0 0 0 2px {inp_focus} !important;
+}}
+
+/* ── Caption / small text ───────────────── */
+[data-testid="stCaptionContainer"] {{ color: {caption_fg} !important; }}
+
+/* ── Spinner ────────────────────────────── */
+[data-testid="stSpinner"] > div {{ border-top-color: {spinner_fg} !important; }}
+</style>
+""", unsafe_allow_html=True)
+
+
+inject_theme(st.session_state["dark_mode"])
+
+# ─────────────────────────────────────────────
 # MODEL DEFINITIONS
 # ─────────────────────────────────────────────
 
@@ -663,6 +937,17 @@ def world_heatmap_fig(df_map):
 with st.sidebar:
     st.title("⚙️ Settings")
 
+    # ── Theme toggle ──────────────────────────
+    _dark = st.session_state["dark_mode"]
+    _label = "🌙 Dark mode" if _dark else "☀️ Light mode"
+    if st.toggle(_label, value=_dark, key="_theme_toggle"):
+        st.session_state["dark_mode"] = True
+    else:
+        st.session_state["dark_mode"] = False
+    # Re-inject CSS immediately if theme just changed
+    inject_theme(st.session_state["dark_mode"])
+    st.divider()
+
     st.subheader("Model selection")
     model_mode = st.radio(
         "Select model",
@@ -731,170 +1016,195 @@ with tab_forecast:
     data = prepare_tensors(df_full, country, start_date, end_date, test_days, device)
     if data is None:
         st.error("Not enough data for this country / date range. Try a wider window.")
-        st.stop()
+        # Use a flag instead of st.stop() so the Map tab still renders
+        forecast_ok = False
+    else:
+        forecast_ok = True
 
-    # ── Training ──────────────────────────────
-    if do_train:
-        pb   = st.progress(0.0)
-        stat = st.empty()
+    if forecast_ok:
+        # ── Training ──────────────────────────────
+        if do_train:
+            pb   = st.progress(0.0)
+            stat = st.empty()
 
-        if model_mode in ("PINN", "Hybrid"):
-            pinn_model, pinn_log = train_pinn(data, epochs, n_pop, device, pb, stat)
-            st.session_state["pinn_model"]  = pinn_model
-            st.session_state["pinn_log_df"] = pinn_log
-            torch.save(pinn_model.state_dict(), save_path_pinn)
+            if model_mode in ("PINN", "Hybrid"):
+                pinn_model, pinn_log = train_pinn(data, epochs, n_pop, device, pb, stat)
+                st.session_state["pinn_model"]  = pinn_model
+                st.session_state["pinn_log_df"] = pinn_log
+                torch.save(pinn_model.state_dict(), save_path_pinn)
 
-        if model_mode in ("LSTM", "Hybrid"):
-            pb.progress(0.0)
-            lstm_model, lstm_log, lstm_data_seqs = train_lstm(
-                data, lstm_epochs, device, pb, stat
+            if model_mode in ("LSTM", "Hybrid"):
+                pb.progress(0.0)
+                lstm_model, lstm_log, lstm_data_seqs = train_lstm(
+                    data, lstm_epochs, device, pb, stat
+                )
+                st.session_state["lstm_model"]     = lstm_model
+                st.session_state["lstm_log_df"]    = lstm_log
+                st.session_state["lstm_data_seqs"] = lstm_data_seqs
+                torch.save(lstm_model.state_dict(), save_path_lstm)
+
+            st.success("Training complete ✓  Models saved.")
+
+        # ── Loading ───────────────────────────────
+        if st.session_state.get("load_requested"):
+            if model_mode in ("PINN", "Hybrid") and os.path.exists(save_path_pinn):
+                m = SEIAHR_Tuned(n_pop, data["t_max"], data["scaler_y"]).to(device)
+                m.load_state_dict(torch.load(save_path_pinn, map_location=device))
+                st.session_state["pinn_model"]  = m
+                st.session_state["pinn_log_df"] = None
+
+            if model_mode in ("LSTM", "Hybrid") and os.path.exists(save_path_lstm):
+                lstm_seqs = prepare_lstm_sequences(data)
+                m_lstm = ImprovedLSTM(
+                    input_size=1, hidden_size=64, num_layers=2,
+                    forecast_steps=1, dropout=0.2, bidirectional=True,
+                ).to(device)
+                m_lstm.load_state_dict(torch.load(save_path_lstm, map_location=device))
+                st.session_state["lstm_model"]     = m_lstm
+                st.session_state["lstm_log_df"]    = None
+                st.session_state["lstm_data_seqs"] = lstm_seqs
+
+            st.session_state["load_requested"] = False
+            st.success("Model(s) loaded ✓")
+
+        # ── Guard: need at least one model ────────
+        need_pinn = model_mode in ("PINN", "Hybrid")
+        need_lstm = model_mode in ("LSTM", "Hybrid")
+
+        model_ready = True
+        if need_pinn and "pinn_model" not in st.session_state:
+            st.warning("Train a PINN model or load one from the sidebar.")
+            model_ready = False
+        if need_lstm and "lstm_model" not in st.session_state:
+            st.warning("Train an LSTM model or load one from the sidebar.")
+            model_ready = False
+
+        if model_ready:
+            # ── Evaluation ────────────────────────────
+            pinn_pred = lstm_pred = hybrid_pred = None
+            actual     = None
+
+            if need_pinn:
+                pinn_model = st.session_state["pinn_model"]
+                pinn_pred, actual, pinn_mae, pinn_mape = evaluate_pinn(pinn_model, data)
+
+            if need_lstm:
+                lstm_model     = st.session_state["lstm_model"]
+                lstm_data_seqs = st.session_state["lstm_data_seqs"]
+                lstm_pred, actual, lstm_mae, lstm_mape = evaluate_lstm(lstm_model, lstm_data_seqs, data)
+
+            if model_mode == "Hybrid":
+                hybrid_pred = compute_hybrid(pinn_pred, lstm_pred)
+                n_tr = data["n_train"]
+                hp_test = hybrid_pred[n_tr:]
+                ac_test = actual[n_tr:]
+                valid   = ~np.isnan(hp_test)
+                hybrid_mae  = mean_absolute_error(ac_test[valid], hp_test[valid])
+                hybrid_mape = np.mean(np.abs(
+                    (ac_test[valid] - hp_test[valid]) / (np.abs(ac_test[valid]) + 1)
+                )) * 100
+
+            n_train = data["n_train"]
+            dates   = data["dates"]
+
+            # ── PINN R₀ / β banner — shown FIRST, above everything ────────────
+            if need_pinn:
+                epi = get_epi_params(pinn_model, device)
+                risk_label, risk_type, risk_msg = risk_recommendation(epi["avg_r0"])
+                st.subheader(f"📈 Transmission Risk: {risk_label}")
+                if risk_type == "error":
+                    st.error(risk_msg)
+                elif risk_type == "warning":
+                    st.warning(risk_msg)
+                else:
+                    st.success(risk_msg)
+
+                b1, b2, b3, b4, b5 = st.columns(5)
+                b1.metric("Avg β",    f"{epi['avg_beta']:.4f}")
+                b2.metric("Min β",    f"{epi['min_beta']:.4f}")
+                b3.metric("Max β",    f"{epi['max_beta']:.4f}")
+                b4.metric("Avg R₀",   f"{epi['avg_r0']:.2f}")
+                b5.metric("R₀ range", f"{epi['min_r0']:.2f} – {epi['max_r0']:.2f}")
+                st.divider()
+
+            # ── KPI row ───────────────────────────────
+            if model_mode == "PINN":
+                k1, k2, k3, k4 = st.columns(4)
+                k1.metric("PINN MAE",  f"{pinn_mae:,.0f} cases")
+                k2.metric("PINN MAPE", f"{pinn_mape:.1f}%")
+                k3.metric("Training days", str(n_train))
+                k4.metric("Forecast window", f"{test_days} days")
+
+            elif model_mode == "LSTM":
+                k1, k2, k3, k4 = st.columns(4)
+                k1.metric("LSTM MAE",  f"{lstm_mae:,.0f} cases")
+                k2.metric("LSTM MAPE", f"{lstm_mape:.1f}%")
+                k3.metric("Training days", str(n_train))
+                k4.metric("Forecast window", f"{test_days} days")
+
+            else:  # Hybrid
+                k1, k2, k3, k4, k5, k6 = st.columns(6)
+                k1.metric("PINN MAE",   f"{pinn_mae:,.0f}")
+                k2.metric("LSTM MAE",   f"{lstm_mae:,.0f}")
+                k3.metric("Hybrid MAE", f"{hybrid_mae:,.0f}")
+                k4.metric("PINN MAPE",  f"{pinn_mape:.1f}%")
+                k5.metric("LSTM MAPE",  f"{lstm_mape:.1f}%")
+                k6.metric("Hybrid MAPE",f"{hybrid_mape:.1f}%")
+
+            # ── Main forecast chart ───────────────────
+            st.divider()
+            st.plotly_chart(
+                forecast_chart(dates, actual, pinn_pred, lstm_pred, hybrid_pred, n_train, model_mode),
+                use_container_width=True,
             )
-            st.session_state["lstm_model"]     = lstm_model
-            st.session_state["lstm_log_df"]    = lstm_log
-            st.session_state["lstm_data_seqs"] = lstm_data_seqs
-            torch.save(lstm_model.state_dict(), save_path_lstm)
 
-        st.success("Training complete ✓  Models saved.")
+            # ── Loss curves + compartments ────────────
+            col_l, col_r = st.columns(2)
 
-    # ── Loading ───────────────────────────────
-    if st.session_state.get("load_requested"):
-        if model_mode in ("PINN", "Hybrid") and os.path.exists(save_path_pinn):
-            m = SEIAHR_Tuned(n_pop, data["t_max"], data["scaler_y"]).to(device)
-            m.load_state_dict(torch.load(save_path_pinn, map_location=device))
-            st.session_state["pinn_model"]  = m
-            st.session_state["pinn_log_df"] = None
+            with col_l:
+                if model_mode in ("PINN", "Hybrid"):
+                    pinn_log = st.session_state.get("pinn_log_df")
+                    if pinn_log is not None:
+                        st.plotly_chart(loss_chart(pinn_log, "PINN"), use_container_width=True)
+                    else:
+                        st.info("PINN loss curves not available for loaded models.")
+                if model_mode in ("LSTM", "Hybrid"):
+                    lstm_log = st.session_state.get("lstm_log_df")
+                    if lstm_log is not None:
+                        st.plotly_chart(loss_chart(lstm_log, "LSTM"), use_container_width=True)
+                    else:
+                        st.info("LSTM loss curves not available for loaded models.")
 
-        if model_mode in ("LSTM", "Hybrid") and os.path.exists(save_path_lstm):
-            lstm_seqs = prepare_lstm_sequences(data)
-            m_lstm = ImprovedLSTM(
-                input_size=1, hidden_size=64, num_layers=2,
-                forecast_steps=1, dropout=0.2, bidirectional=True,
-            ).to(device)
-            m_lstm.load_state_dict(torch.load(save_path_lstm, map_location=device))
-            st.session_state["lstm_model"]     = m_lstm
-            st.session_state["lstm_log_df"]    = None
-            st.session_state["lstm_data_seqs"] = lstm_seqs
+            with col_r:
+                if need_pinn:
+                    st.plotly_chart(compartment_chart(pinn_model, data, dates), use_container_width=True)
 
-        st.session_state["load_requested"] = False
-        st.success("Model(s) loaded ✓")
+            # ── Download predictions ───────────────────
+            st.divider()
+            pred_df = pd.DataFrame({"date": dates.values, "actual_cases": actual})
+            if pinn_pred is not None:
+                pred_df["pinn_forecast"] = pinn_pred
+            if lstm_pred is not None:
+                pred_df["lstm_forecast"] = lstm_pred
+            if hybrid_pred is not None:
+                pred_df["hybrid_forecast"] = hybrid_pred
+            pred_df["split"] = ["train"] * n_train + ["test"] * (len(dates) - n_train)
 
-    # ── Guard: need at least one model ────────
-    need_pinn = model_mode in ("PINN", "Hybrid")
-    need_lstm = model_mode in ("LSTM", "Hybrid")
+            st.download_button(
+                "⬇️ Download predictions as CSV",
+                data=pred_df.to_csv(index=False),
+                file_name="covid_forecast.csv",
+                mime="text/csv",
+            )
 
-    if need_pinn and "pinn_model" not in st.session_state:
-        st.warning("Train a PINN model or load one from the sidebar.")
-        st.stop()
-    if need_lstm and "lstm_model" not in st.session_state:
-        st.warning("Train an LSTM model or load one from the sidebar.")
-        st.stop()
-
-    # ── Evaluation ────────────────────────────
-    pinn_pred = lstm_pred = hybrid_pred = None
-    actual     = None
-
-    if need_pinn:
-        pinn_model = st.session_state["pinn_model"]
-        pinn_pred, actual, pinn_mae, pinn_mape = evaluate_pinn(pinn_model, data)
-
-    if need_lstm:
-        lstm_model     = st.session_state["lstm_model"]
-        lstm_data_seqs = st.session_state["lstm_data_seqs"]
-        lstm_pred, actual, lstm_mae, lstm_mape = evaluate_lstm(lstm_model, lstm_data_seqs, data)
-
-    if model_mode == "Hybrid":
-        hybrid_pred = compute_hybrid(pinn_pred, lstm_pred)
-        n_tr = data["n_train"]
-        hp_test = hybrid_pred[n_tr:]
-        ac_test = actual[n_tr:]
-        valid   = ~np.isnan(hp_test)
-        hybrid_mae  = mean_absolute_error(ac_test[valid], hp_test[valid])
-        hybrid_mape = np.mean(np.abs(
-            (ac_test[valid] - hp_test[valid]) / (np.abs(ac_test[valid]) + 1)
-        )) * 100
-
-    n_train = data["n_train"]
-    dates   = data["dates"]
-
-    # ── KPI row ───────────────────────────────
-    if model_mode == "PINN":
-        k1, k2, k3, k4 = st.columns(4)
-        k1.metric("PINN MAE",  f"{pinn_mae:,.0f} cases")
-        k2.metric("PINN MAPE", f"{pinn_mape:.1f}%")
-        k3.metric("Training days", str(n_train))
-        k4.metric("Forecast window", f"{test_days} days")
-
-    elif model_mode == "LSTM":
-        k1, k2, k3, k4 = st.columns(4)
-        k1.metric("LSTM MAE",  f"{lstm_mae:,.0f} cases")
-        k2.metric("LSTM MAPE", f"{lstm_mape:.1f}%")
-        k3.metric("Training days", str(n_train))
-        k4.metric("Forecast window", f"{test_days} days")
-
-    else:  # Hybrid
-        k1, k2, k3, k4, k5, k6 = st.columns(6)
-        k1.metric("PINN MAE",   f"{pinn_mae:,.0f}")
-        k2.metric("LSTM MAE",   f"{lstm_mae:,.0f}")
-        k3.metric("Hybrid MAE", f"{hybrid_mae:,.0f}")
-        k4.metric("PINN MAPE",  f"{pinn_mape:.1f}%")
-        k5.metric("LSTM MAPE",  f"{lstm_mape:.1f}%")
-        k6.metric("Hybrid MAPE",f"{hybrid_mape:.1f}%")
-
-    # ── Main forecast chart ───────────────────
-    st.divider()
-    st.plotly_chart(
-        forecast_chart(dates, actual, pinn_pred, lstm_pred, hybrid_pred, n_train, model_mode),
-        use_container_width=True,
-    )
-
-    # ── Loss curves + compartments ────────────
-    col_l, col_r = st.columns(2)
-
-    with col_l:
-        if model_mode in ("PINN", "Hybrid"):
-            pinn_log = st.session_state.get("pinn_log_df")
-            if pinn_log is not None:
-                st.plotly_chart(loss_chart(pinn_log, "PINN"), use_container_width=True)
-            else:
-                st.info("PINN loss curves not available for loaded models.")
-        if model_mode in ("LSTM", "Hybrid"):
-            lstm_log = st.session_state.get("lstm_log_df")
-            if lstm_log is not None:
-                st.plotly_chart(loss_chart(lstm_log, "LSTM"), use_container_width=True)
-            else:
-                st.info("LSTM loss curves not available for loaded models.")
-
-    with col_r:
-        if need_pinn:
-            st.plotly_chart(compartment_chart(pinn_model, data, dates), use_container_width=True)
-
-    # ── PINN-specific: β / R₀ section ─────────
-    if need_pinn:
-        st.divider()
-        st.subheader("📈 Transmission dynamics: β and R₀")
-
-        epi = get_epi_params(pinn_model, device)
-        risk_label, risk_type, risk_msg = risk_recommendation(epi["avg_r0"])
-        st.markdown(f"### {risk_label}")
-        if risk_type == "error":
-            st.error(risk_msg)
-        elif risk_type == "warning":
-            st.warning(risk_msg)
-        else:
-            st.success(risk_msg)
-
-        b1, b2, b3, b4, b5 = st.columns(5)
-        b1.metric("Avg β",   f"{epi['avg_beta']:.4f}")
-        b2.metric("Min β",   f"{epi['min_beta']:.4f}")
-        b3.metric("Max β",   f"{epi['max_beta']:.4f}")
-        b4.metric("Avg R₀",  f"{epi['avg_r0']:.2f}")
-        b5.metric("R₀ range", f"{epi['min_r0']:.2f} – {epi['max_r0']:.2f}")
-
-
-        with st.expander("ℹ️ What do β and R₀ mean?"):
-            st.markdown("""
+            # ── β / R₀ explainers — bottom of page ────
+            if need_pinn:
+                st.divider()
+                st.subheader("📚 Epidemiological Glossary")
+                with st.expander("ℹ️ What do β and R₀ mean?"):
+                    st.markdown("""
 **β (beta) — transmission rate**
-The average contacts per day multiplied by transmission probability per contact.
+The average number of contacts per day multiplied by transmission probability per contact.
 A higher β means the virus spreads more easily. β varies over time as behaviour,
 immunity, and variants change — that is why the model learns a *curve* rather than
 a single number.
@@ -904,49 +1214,29 @@ The average number of people one infected person goes on to infect, calculated a
 - **R₀ > 1** → epidemic is growing
 - **R₀ = 1** → epidemic is stable
 - **R₀ < 1** → epidemic is declining
-
-The dashed red line marks the critical threshold of R₀ = 1.
 """)
 
-        with st.expander("🔬 Learned biological parameters"):
-            params = {
-                "Average β":                    epi["avg_beta"],
-                "Min β":                        epi["min_beta"],
-                "Max β":                        epi["max_beta"],
-                "Average R₀":                   epi["avg_r0"],
-                "Latent period (days)":         1 / epi["sigma"],
-                "Infectious period (days)":     1 / epi["gamma_I"],
-                "Hospital stay (days)":         1 / epi["gamma_H"],
-                "Symptomatic rate (%)":         epi["r"] * 100,
-                "Case detection rate (%)":      epi["k_c"] * 100,
-                "Hospitalisation rate (ψ_I)":   pinn_model.psi_I.item(),
-                "Asymptomatic infectivity (η_A)": pinn_model.eta_A.item(),
-            }
-            st.dataframe(
-                pd.DataFrame.from_dict(params, orient="index", columns=["Value"])
-                .style.format("{:.4f}")
-            )
-
-    # ── Download predictions ───────────────────
-    st.divider()
-    pred_df = pd.DataFrame({"date": dates.values, "actual_cases": actual})
-    if pinn_pred is not None:
-        pred_df["pinn_forecast"] = pinn_pred
-    if lstm_pred is not None:
-        pred_df["lstm_forecast"] = lstm_pred
-    if hybrid_pred is not None:
-        pred_df["hybrid_forecast"] = hybrid_pred
-    pred_df["split"] = ["train"] * n_train + ["test"] * (len(dates) - n_train)
-
-    st.download_button(
-        "⬇️ Download predictions as CSV",
-        data=pred_df.to_csv(index=False),
-        file_name="covid_forecast.csv",
-        mime="text/csv",
-    )
+                with st.expander("🔬 Learned biological parameters"):
+                    params = {
+                        "Average β":                      epi["avg_beta"],
+                        "Min β":                          epi["min_beta"],
+                        "Max β":                          epi["max_beta"],
+                        "Average R₀":                     epi["avg_r0"],
+                        "Latent period (days)":           1 / epi["sigma"],
+                        "Infectious period (days)":       1 / epi["gamma_I"],
+                        "Hospital stay (days)":           1 / epi["gamma_H"],
+                        "Symptomatic rate (%)":           epi["r"] * 100,
+                        "Case detection rate (%)":        epi["k_c"] * 100,
+                        "Hospitalisation rate (ψ_I)":     pinn_model.psi_I.item(),
+                        "Asymptomatic infectivity (η_A)": pinn_model.eta_A.item(),
+                    }
+                    st.dataframe(
+                        pd.DataFrame.from_dict(params, orient="index", columns=["Value"])
+                        .style.format("{:.4f}")
+                    )
 
 # ══════════════════════════════════════════════
-# TAB 2 — WORLD HEATMAP
+# TAB 2 — WORLD HEATMAP  (always rendered)
 # ══════════════════════════════════════════════
 with tab_map:
     st.subheader("🌍 Global COVID-19 Spread")
@@ -961,7 +1251,6 @@ with tab_map:
     if df_map.empty:
         st.error("Could not build map data from the loaded dataset.")
     else:
-        # ── Optional metric selector ─────────────────
         months_available = sorted(df_map["month"].unique())
         col_info, col_range = st.columns([2, 3])
         with col_info:
